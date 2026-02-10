@@ -1,0 +1,20 @@
+// servidor.js
+import express from "express";
+import acceso from "./rutas/acceso.js";
+import rutaSync from "./rutas/sincronizar.js";
+import cors from "cors";
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use("/api", acceso);
+app.use("/api/sync", rutaSync);
+
+app.get("/api/prueba", (req, res) => {
+  res.send("🚀 Servidor funcionando correctamente");
+});
+
+app.listen(3002, () => {
+  console.log("🌐 Backend corriendo en http://localhost:3002");
+});
