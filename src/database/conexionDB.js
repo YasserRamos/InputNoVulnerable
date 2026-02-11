@@ -1,8 +1,6 @@
 import mysql from "mysql2/promise";
 import rateLimit from "express-rate-limit";
 
-app.use(limiter);
-
 const conexion = await mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -25,14 +23,5 @@ console.log("ENV:", {
   db: process.env.DB_NAME,
   port: process.env.DB_PORT,
 });
-
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: "Demasiadas peticiones, intenta más tarde"
-});
-
-
 
 export default conexion;
