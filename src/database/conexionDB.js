@@ -17,5 +17,12 @@ const conexion = await mysql.createConnection({
 // });
 
 console.log("📦 Conectado a MySQL correctamente");
+console.log("ENV:", {
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  db: process.env.DB_NAME,
+  port: process.env.DB_PORT,
+});
+
 
 export default conexion;
