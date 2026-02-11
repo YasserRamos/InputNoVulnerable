@@ -18,5 +18,5 @@ app.get("/api/prueba", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("🌐 Backend corriendo en http://localhost:3002");
+  console.log("🌐 Backend corriendo en el puerto 3002 usando el proxy 47410");
 });

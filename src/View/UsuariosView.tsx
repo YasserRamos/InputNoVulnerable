@@ -6,23 +6,33 @@ interface Usuario {
   nombre: string;
 }
 
-export default function UsuariosView() {
+const API = import.meta.env.VITE_API_URL;
 
+export default function UsuariosView() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [nombre, setNombre] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
-
   const [esAdmin, setEsAdmin] = useState(false);
 
   /* ==========================
      VERIFICAR PERMISO
   ========================== */
   async function cargarPermiso() {
-    const res = await fetch("/api/permisos");
-    const data = await res.json();
+    try {
+      const res = await fetch(`${API}/api/permisos`);
 
-    if (data.rol === "admin") {
-      setEsAdmin(true);
+      if (!res.ok) {
+        console.error("Error permisos:", res.status);
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.rol === "admin") {
+        setEsAdmin(true);
+      }
+    } catch (error) {
+      console.error("Error al cargar permisos:", error);
     }
   }
 
@@ -30,9 +40,19 @@ export default function UsuariosView() {
      CARGAR USUARIOS
   ========================== */
   async function cargarUsuarios() {
-    const res = await fetch("/api/usuarios");
-    const data = await res.json();
-    setUsuarios(data);
+    try {
+      const res = await fetch(`${API}/api/usuarios`);
+
+      if (!res.ok) {
+        console.error("Error usuarios:", res.status);
+        return;
+      }
+
+      const data = await res.json();
+      setUsuarios(data);
+    } catch (error) {
+      console.error("Error al cargar usuarios:", error);
+    }
   }
 
   useEffect(() => {
@@ -43,7 +63,7 @@ export default function UsuariosView() {
   /* ==========================
      CREAR / MODIFICAR
   ========================== */
-  async function guardar(e: any) {
+  async function guardar(e: React.FormEvent) {
     e.preventDefault();
 
     if (!esAdmin) {
@@ -51,35 +71,32 @@ export default function UsuariosView() {
       return;
     }
 
-    if (!editId) {
-      await fetch("/api/usuarios", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nombre }),
-      });
-    }
+    try {
+      if (!editId) {
+        await fetch(`${API}/api/usuarios`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre }),
+        });
+      } else {
+        await fetch(`${API}/api/usuarios/${editId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre }),
+        });
+      }
 
-    if (editId) {
-      await fetch(`/api/usuarios/${editId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nombre }),
-      });
+      limpiar();
+      cargarUsuarios();
+    } catch (error) {
+      console.error("Error al guardar:", error);
     }
-
-    limpiar();
-    cargarUsuarios();
   }
 
   /* ==========================
      ELIMINAR
   ========================== */
   async function eliminar(id: number) {
-
     if (!esAdmin) {
       alert("Sistema en modo lectura");
       return;
@@ -87,18 +104,21 @@ export default function UsuariosView() {
 
     if (!confirm("¿Eliminar usuario?")) return;
 
-    await fetch(`/api/usuarios/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      await fetch(`${API}/api/usuarios/${id}`, {
+        method: "DELETE",
+      });
 
-    cargarUsuarios();
+      cargarUsuarios();
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+    }
   }
 
   /* ==========================
      EDITAR
   ========================== */
   function editar(user: Usuario) {
-
     if (!esAdmin) return;
 
     setNombre(user.nombre);
@@ -112,9 +132,7 @@ export default function UsuariosView() {
 
   return (
     <section className="min-h-screen bg-gray-100 p-10">
-
       <div className="max-w-xl mx-auto bg-white shadow-lg rounded-xl p-8">
-
         <h1 className="text-2xl font-bold text-center mb-4 text-[#1a202e]">
           CRUD Usuarios
         </h1>
@@ -126,7 +144,6 @@ export default function UsuariosView() {
         )}
 
         <form onSubmit={guardar} className="mb-6">
-
           <input
             type="text"
             value={nombre}
@@ -148,11 +165,9 @@ export default function UsuariosView() {
           >
             {editId ? "Modificar" : "Crear"}
           </button>
-
         </form>
 
         <div className="space-y-3">
-
           {usuarios.map((user) => (
             <div
               key={user.pk_idusuario}
@@ -179,9 +194,7 @@ export default function UsuariosView() {
               )}
             </div>
           ))}
-
         </div>
-
       </div>
     </section>
   );
