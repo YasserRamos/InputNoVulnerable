@@ -27,9 +27,9 @@ app.use(
   })
 );
 
-app.use(cors({
-  origin: "https://inputnovulnerable.onrender.com/"
-}));
+// app.use(cors({
+//   origin: "https://inputnovulnerable.onrender.com/"
+// }));
 
 app.use("/api", acceso);
 app.use("/api/sync", rutaSync);

@@ -1,5 +1,4 @@
 import mysql from "mysql2/promise";
-import rateLimit from "express-rate-limit";
 
 const conexion = await mysql.createConnection({
   host: process.env.DB_HOST,
