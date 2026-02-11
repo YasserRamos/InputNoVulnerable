@@ -1,6 +1,6 @@
 import express from "express";
 import conexion from "../conexionDB.js";
-import { verificarAdmin } from "../middlewares/verificarAdmin.js";
+import { VerificarAdmin } from "../middlewares/VerificarAdmin.js";
 
 const router = express.Router();
 
