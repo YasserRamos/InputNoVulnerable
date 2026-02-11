@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, UserPlus } from "lucide-react";
 
 interface Usuario {
   pk_idusuario: number;
@@ -20,20 +20,14 @@ export default function UsuariosView() {
   async function cargarPermiso() {
     try {
       const res = await fetch(`${API}/api/permisos`);
-
-      if (!res.ok) {
-        console.error("Error permisos:", res.status);
-        return;
-      }
+      if (!res.ok) return;
 
       const data = await res.json();
 
       if (data.rol === "admin") {
         setEsAdmin(true);
       }
-    } catch (error) {
-      console.error("Error al cargar permisos:", error);
-    }
+    } catch {}
   }
 
   /* ==========================
@@ -42,17 +36,11 @@ export default function UsuariosView() {
   async function cargarUsuarios() {
     try {
       const res = await fetch(`${API}/api/usuarios`);
-
-      if (!res.ok) {
-        console.error("Error usuarios:", res.status);
-        return;
-      }
+      if (!res.ok) return;
 
       const data = await res.json();
       setUsuarios(data);
-    } catch (error) {
-      console.error("Error al cargar usuarios:", error);
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -66,10 +54,7 @@ export default function UsuariosView() {
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!esAdmin) {
-      alert("Sistema en modo lectura");
-      return;
-    }
+    if (!esAdmin) return alert("Sistema en modo lectura");
 
     try {
       if (!editId) {
@@ -88,19 +73,14 @@ export default function UsuariosView() {
 
       limpiar();
       cargarUsuarios();
-    } catch (error) {
-      console.error("Error al guardar:", error);
-    }
+    } catch {}
   }
 
   /* ==========================
      ELIMINAR
   ========================== */
   async function eliminar(id: number) {
-    if (!esAdmin) {
-      alert("Sistema en modo lectura");
-      return;
-    }
+    if (!esAdmin) return alert("Sistema en modo lectura");
 
     if (!confirm("¿Eliminar usuario?")) return;
 
@@ -110,9 +90,7 @@ export default function UsuariosView() {
       });
 
       cargarUsuarios();
-    } catch (error) {
-      console.error("Error al eliminar:", error);
-    }
+    } catch {}
   }
 
   /* ==========================
@@ -131,70 +109,114 @@ export default function UsuariosView() {
   }
 
   return (
-    <section className="min-h-screen bg-gray-100 p-10">
-      <div className="max-w-xl mx-auto bg-white shadow-lg rounded-xl p-8">
-        <h1 className="text-2xl font-bold text-center mb-4 text-[#1a202e]">
-          CRUD Usuarios
-        </h1>
+    <section className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
 
-        {!esAdmin && (
-          <p className="text-center text-red-600 mb-4 font-semibold">
-            🔒 Modo lectura activado
+      {/* CONTENEDOR PRINCIPAL */}
+      <div className="w-full max-w-3xl bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10">
+
+        {/* HEADER */}
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
+            Gestión de Usuarios
+          </h1>
+
+          <p className="text-slate-500 mt-1">
+            Panel administrativo del sistema
           </p>
-        )}
 
-        <form onSubmit={guardar} className="mb-6">
-          <input
-            type="text"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Nombre"
-            disabled={!esAdmin}
-            required
-            className="w-full border rounded-md px-3 py-2 mb-3 bg-gray-50"
-          />
+          {!esAdmin && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-red-100 text-red-700 px-4 py-1.5 rounded-full text-sm font-medium">
+              🔒 Modo lectura activado
+            </div>
+          )}
+        </header>
 
-          <button
-            type="submit"
-            disabled={!esAdmin}
-            className={`w-full py-2 rounded-md transition ${
-              esAdmin
-                ? "bg-[#1253a3] text-white hover:bg-blue-700"
-                : "bg-gray-400 text-gray-200 cursor-not-allowed"
-            }`}
-          >
-            {editId ? "Modificar" : "Crear"}
-          </button>
+        {/* FORMULARIO */}
+        <form
+          onSubmit={guardar}
+          className="bg-slate-50 rounded-2xl p-6 shadow-inner mb-8"
+        >
+          <div className="flex flex-col md:flex-row gap-4">
+
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Nombre del usuario"
+              disabled={!esAdmin}
+              required
+              className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-200"
+            />
+
+            <button
+              type="submit"
+              disabled={!esAdmin}
+              className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition
+                ${
+                  esAdmin
+                    ? "bg-blue-600 text-white hover:bg-blue-700 active:scale-95"
+                    : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                }
+              `}
+            >
+              <UserPlus size={18} />
+              {editId ? "Actualizar" : "Crear"}
+            </button>
+          </div>
         </form>
 
-        <div className="space-y-3">
+        {/* LISTA */}
+        <div className="space-y-4">
+
+          {usuarios.length === 0 && (
+            <p className="text-center text-slate-400 py-6">
+              No hay usuarios registrados
+            </p>
+          )}
+
           {usuarios.map((user) => (
             <div
               key={user.pk_idusuario}
-              className="flex justify-between items-center bg-gray-100 p-3 rounded-md"
+              className="group bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition"
             >
-              <p className="font-semibold">{user.nombre}</p>
+              {/* INFO */}
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {user.nombre}
+                </p>
 
+                <p className="text-sm text-slate-500">
+                  ID: #{user.pk_idusuario}
+                </p>
+              </div>
+
+              {/* ACCIONES */}
               {esAdmin && (
-                <div className="flex gap-3">
+                <div className="flex gap-3 opacity-80 group-hover:opacity-100 transition">
+
                   <button
                     onClick={() => editar(user)}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                    title="Editar"
                   >
                     <Pencil size={18} />
                   </button>
 
                   <button
                     onClick={() => eliminar(user.pk_idusuario)}
-                    className="text-red-600 hover:text-red-800"
+                    className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
+                    title="Eliminar"
                   >
                     <Trash2 size={18} />
                   </button>
+
                 </div>
               )}
             </div>
           ))}
+
         </div>
+
       </div>
     </section>
   );

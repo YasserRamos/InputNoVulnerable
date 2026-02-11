@@ -16,7 +16,7 @@ function App() {
       />
 
       <Route
-        path="/login"
+        path="/aboutblank"
         element={
           <AboutBlank />
         }
