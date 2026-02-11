@@ -1,6 +1,6 @@
 import conexion from "../conexionDB.js";
 
-export async function VerificarAdmin(req, res, next) {
+export async function verificarAdmin(req, res, next) {
 
   const [rows] = await conexion.query(
     "SELECT rol FROM permisos LIMIT 1"
