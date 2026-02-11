@@ -1,8 +1,25 @@
 import express from "express";
 import conexion from "../conexionDB.js";
 import { verificarAdmin } from "../Middlewares/verificarAdmin.js";
+import rateLimit from "express-rate-limit";
 
 const router = express.Router();
+
+/* ============================
+   LIMITADOR GLOBAL
+============================ */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 80,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Demasiadas solicitudes. Intenta más tarde."
+  }
+});
+
+// Aplica a todas las rutas
+router.use(limiter);
 
 /* ============================
    OBTENER USUARIOS (LIBRE)

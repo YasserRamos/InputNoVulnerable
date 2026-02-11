@@ -1,9 +1,26 @@
 import express from "express";
 import cors from "cors";
 import conexion from "../conexionDB.js";
+import rateLimit from "express-rate-limit";
 
 const router = express.Router();
 router.use(cors());
+
+/* ===============================
+   LIMITADOR (ANTI-DDOS)
+=============================== */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Demasiadas solicitudes. Intenta más tarde."
+  }
+});
+
+// Aplicar a TODAS las rutas de este router
+router.use(limiter);
 
 /* ===============================
    OBTENER TODOS LOS USUARIOS
@@ -13,7 +30,9 @@ router.get("/usuarios", async (req, res) => {
     const [rows] = await conexion.query(
       "SELECT pk_idusuario, nombre FROM usuarios"
     );
+
     res.json(rows);
+
   } catch (err) {
     console.error("Error al obtener usuarios:", err);
     res.status(500).json({ error: "Error al obtener usuarios" });
@@ -33,8 +52,10 @@ router.post("/usuarios", async (req, res) => {
     );
 
     res.json({ ok: true, msg: "Usuario creado" });
+
   } catch (err) {
     console.error("Error al crear usuario:", err);
+
     res.status(400).json({
       error: err.sqlMessage || "Datos inválidos",
     });
@@ -55,8 +76,10 @@ router.put("/usuarios/:id", async (req, res) => {
     );
 
     res.json({ ok: true, msg: "Usuario actualizado" });
+
   } catch (err) {
     console.error("Error al actualizar usuario:", err);
+
     res.status(400).json({
       error: err.sqlMessage || "Datos inválidos",
     });
@@ -76,8 +99,10 @@ router.delete("/usuarios/:id", async (req, res) => {
     );
 
     res.json({ ok: true, msg: "Usuario eliminado" });
+
   } catch (err) {
     console.error("Error al eliminar usuario:", err);
+
     res.status(500).json({ error: "Error al eliminar usuario" });
   }
 });
@@ -87,6 +112,7 @@ router.delete("/usuarios/:id", async (req, res) => {
 =============================== */
 router.get("/permisos", async (req, res) => {
   try {
+
     const [rows] = await conexion.query(
       "SELECT rol FROM permisos LIMIT 1"
     );
@@ -99,6 +125,7 @@ router.get("/permisos", async (req, res) => {
 
   } catch (err) {
     console.error("Error al obtener permisos:", err);
+
     res.status(500).json({ error: "Error al obtener permisos" });
   }
 });
