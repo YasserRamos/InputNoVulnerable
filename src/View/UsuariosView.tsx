@@ -126,7 +126,7 @@ export default function UsuariosView() {
 
           {!esAdmin && (
             <div className="mt-4 inline-flex items-center gap-2 bg-red-100 text-red-700 px-4 py-1.5 rounded-full text-sm font-medium">
-              🔒 Modo lectura activado
+              Modo lectura activado
             </div>
           )}
         </header>
