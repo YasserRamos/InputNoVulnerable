@@ -9,8 +9,8 @@ const router = express.Router();
    RATE LIMIT
 ============================ */
 const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 15,
+  windowMs: 0 * 2 * 1000, // 5 minutos
+  max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

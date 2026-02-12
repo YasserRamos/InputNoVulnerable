@@ -10,8 +10,8 @@ router.use(cors());
    RATE LIMIT (ANTI-DDOS)
 =============================== */
 const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 min
-  max: 20,
+  windowMs: 0 * 2 * 1000, // 5 min
+  max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
