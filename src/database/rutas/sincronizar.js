@@ -25,7 +25,7 @@ router.use(limiter);
    DELAY ANTI-SPAM
 =============================== */
 const ultimasPeticiones = new Map();
-const DELAY_MS = 2500;
+const DELAY_MS = 3000;
 
 function verificarDelay(req) {
 
@@ -43,7 +43,7 @@ function verificarDelay(req) {
 
   setTimeout(() => {
     ultimasPeticiones.delete(ip);
-  }, DELAY_MS * 2);
+  }, DELAY_MS * 3);
 
   return true;
 }
@@ -64,10 +64,115 @@ function validarNombre(nombre) {
   nombre = nombre.replace(/<[^>]*>?/gm, "");
 
   // Bloqueo palabras peligrosas
-  const bloqueadas = [
-    "script", "select", "insert", "delete", "drop",
-    "update", "union", "javascript:", "--", "/*", "*/"
-  ];
+const bloqueadas = [
+
+  // =========================
+  // SQL Injection
+  // =========================
+  "select",
+  "insert",
+  "update",
+  "delete",
+  "drop",
+  "truncate",
+  "alter",
+  "create",
+  "replace",
+  "rename",
+  "grant",
+  "revoke",
+  "commit",
+  "rollback",
+  "savepoint",
+  "union",
+  "having",
+  "where",
+  "order by",
+  "group by",
+  "limit",
+  "offset",
+  "benchmark",
+  "sleep",
+  "load_file",
+  "outfile",
+  "into outfile",
+  "information_schema",
+  "table_schema",
+  "database()",
+  "version()",
+
+  // =========================
+  // Comentarios SQL
+  // =========================
+  "--",
+  "#",
+  "/*",
+  "*/",
+
+  // =========================
+  // Operadores sospechosos
+  // =========================
+  "' or ",
+  "\" or ",
+  "' and ",
+  "\" and ",
+  " or 1=1",
+  " or '1'='1",
+  " or \"1\"=\"1",
+
+  // =========================
+  // XSS
+  // =========================
+  "<script",
+  "</script>",
+  "javascript:",
+  "onerror",
+  "onload",
+  "onclick",
+  "onmouseover",
+  "alert(",
+  "prompt(",
+  "confirm(",
+  "<img",
+  "<iframe",
+  "<svg",
+  "<object",
+  "<embed",
+  "<link",
+  "<style",
+  "<meta",
+
+  // =========================
+  // HTML peligroso
+  // =========================
+  "<",
+  ">",
+  "&lt;",
+  "&gt;",
+
+  // =========================
+  // Node / JS ejecución
+  // =========================
+  "require(",
+  "process.",
+  "eval(",
+  "child_process",
+  "fs.",
+  "exec(",
+
+  // =========================
+  // Misc peligrosos
+  // =========================
+  "http://",
+  "https://",
+  "data:",
+  "base64",
+  "%27",     // '
+  "%22",     // "
+  "%3c",     // <
+  "%3e",     // >
+];
+
 
   const lower = nombre.toLowerCase();
 
