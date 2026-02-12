@@ -71,6 +71,12 @@ export default function UsuariosView() {
   useEffect(() => {
     cargarUsuarios();
     cargarPermiso();
+
+    const intervalo = setInterval(() => {
+      cargarPermiso();
+    }, 3000);
+
+    return () => clearInterval(intervalo);
   }, []);
 
   /* ==========================
@@ -245,10 +251,9 @@ export default function UsuariosView() {
               type="submit"
               disabled={!esAdmin}
               className={`px-6 py-3 rounded-xl font-semibold
-                ${
-                  esAdmin
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-gray-400 text-gray-200"
+                ${esAdmin
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-gray-400 text-gray-200"
                 }`}
             >
               <UserPlus size={18} />
