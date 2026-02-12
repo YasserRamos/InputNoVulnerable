@@ -3,31 +3,10 @@ import conexion from "../conexionDB.js";
 import { verificarAdmin } from "../Middlewares/verificarAdmin.js";
 import rateLimit from "express-rate-limit";
 
-/* ============================
-   DELAY ANTI-SPAM
-============================ */
-const ultimasPeticiones = new Map();
-const DELAY_MS = 2000; // 2 segundos
-
-function verificarDelay(req) {
-
-  const ip = req.ip;
-  const ahora = Date.now();
-
-  const ultima = ultimasPeticiones.get(ip) || 0;
-
-  if (ahora - ultima < DELAY_MS) {
-    return false;
-  }
-
-  ultimasPeticiones.set(ip, ahora);
-  return true;
-}
-
 const router = express.Router();
 
 /* ============================
-   LIMITADOR GLOBAL
+   RATE LIMIT
 ============================ */
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutos
@@ -39,8 +18,38 @@ const limiter = rateLimit({
   }
 });
 
-// Aplica a todas las rutas
 router.use(limiter);
+
+/* ============================
+   DELAY ANTI-SPAM (LIMPIO)
+============================ */
+const ultimasPeticiones = new Map();
+const DELAY_MS = 2000; // 2 segundos
+
+function verificarDelay(req) {
+
+  // Compatible con proxy
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket.remoteAddress;
+
+  const ahora = Date.now();
+
+  const ultima = ultimasPeticiones.get(ip) || 0;
+
+  if (ahora - ultima < DELAY_MS) {
+    return false;
+  }
+
+  ultimasPeticiones.set(ip, ahora);
+
+  // 🧹 Limpieza automática (evita fuga RAM)
+  setTimeout(() => {
+    ultimasPeticiones.delete(ip);
+  }, DELAY_MS * 2);
+
+  return true;
+}
 
 /* ============================
    VALIDAR NOMBRE
@@ -49,18 +58,15 @@ function validarNombre(nombre) {
 
   if (!nombre) return false;
 
-  // Limpiar espacios
   nombre = nombre.trim();
 
   if (nombre.length === 0) return false;
 
-  // Máx 25 caracteres
   if (nombre.length > 25) return false;
 
-  // Quitar HTML
+  // Eliminar HTML
   nombre = nombre.replace(/<[^>]*>?/gm, "");
 
-  // Bloquear palabras peligrosas
   const bloqueadas = [
     "script",
     "select",
@@ -72,9 +78,7 @@ function validarNombre(nombre) {
     "javascript:",
     "--",
     "/*",
-    "*/",
-    "<",
-    ">"
+    "*/"
   ];
 
   const lower = nombre.toLowerCase();
@@ -83,7 +87,6 @@ function validarNombre(nombre) {
     if (lower.includes(palabra)) return false;
   }
 
-  // Solo letras/números/espacio
   const regex = /^[A-Za-z0-9áéíóúÁÉÍÓÚñÑ ]{3,25}$/;
 
   if (!regex.test(nombre)) return false;
@@ -92,7 +95,7 @@ function validarNombre(nombre) {
 }
 
 /* ============================
-   OBTENER USUARIOS (LIBRE)
+   OBTENER USUARIOS
 ============================ */
 router.get("/usuarios", async (req, res) => {
   try {
@@ -105,20 +108,22 @@ router.get("/usuarios", async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al obtener usuarios" });
+
+    res.status(500).json({
+      error: "Error al obtener usuarios"
+    });
   }
 });
 
 /* ============================
-   CREAR USUARIO (ADMIN)
+   CREAR USUARIO
 ============================ */
 router.post("/usuarios", verificarAdmin, async (req, res) => {
   try {
 
-    /* ⏱ DELAY */
     if (!verificarDelay(req)) {
       return res.status(429).json({
-        error: "Espera unos segundos antes de intentar de nuevo"
+        error: "Espera unos segundos"
       });
     }
 
@@ -128,11 +133,11 @@ router.post("/usuarios", verificarAdmin, async (req, res) => {
 
     if (!nombre) {
       return res.status(400).json({
-        error: "Nombre inválido: sin scripts, máx 25 caracteres"
+        error: "Nombre inválido"
       });
     }
 
-    /* 🔒 BLOQUEAR DUPLICADOS */
+    // Anti-duplicados
     const [existe] = await conexion.query(
       "SELECT pk_idusuario FROM usuarios WHERE nombre = ?",
       [nombre]
@@ -156,21 +161,20 @@ router.post("/usuarios", verificarAdmin, async (req, res) => {
     console.error(err);
 
     res.status(400).json({
-      error: err.sqlMessage
+      error: "Error al crear usuario"
     });
   }
 });
 
 /* ============================
-   MODIFICAR USUARIO (ADMIN)
+   MODIFICAR USUARIO
 ============================ */
 router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
   try {
 
-    /* ⏱ DELAY */
     if (!verificarDelay(req)) {
       return res.status(429).json({
-        error: "Espera unos segundos antes de intentar de nuevo"
+        error: "Espera unos segundos"
       });
     }
 
@@ -181,11 +185,10 @@ router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
 
     if (!nombre) {
       return res.status(400).json({
-        error: "Nombre inválido: sin scripts, máx 25 caracteres"
+        error: "Nombre inválido"
       });
     }
 
-    /* 🔒 BLOQUEAR DUPLICADOS */
     const [existe] = await conexion.query(
       "SELECT pk_idusuario FROM usuarios WHERE nombre = ? AND pk_idusuario != ?",
       [nombre, id]
@@ -209,21 +212,20 @@ router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
     console.error(err);
 
     res.status(400).json({
-      error: err.sqlMessage
+      error: "Error al actualizar"
     });
   }
 });
 
 /* ============================
-   ELIMINAR USUARIO (ADMIN)
+   ELIMINAR USUARIO
 ============================ */
 router.delete("/usuarios/:id", verificarAdmin, async (req, res) => {
   try {
 
-    /* ⏱ DELAY */
     if (!verificarDelay(req)) {
       return res.status(429).json({
-        error: "Espera unos segundos antes de intentar de nuevo"
+        error: "Espera unos segundos"
       });
     }
 
@@ -247,7 +249,7 @@ router.delete("/usuarios/:id", verificarAdmin, async (req, res) => {
 });
 
 /* ============================
-   PERMISOS (SOLO LECTURA)
+   PERMISOS
 ============================ */
 router.get("/permisos", async (req, res) => {
   try {

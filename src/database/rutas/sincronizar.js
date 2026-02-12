@@ -7,10 +7,10 @@ const router = express.Router();
 router.use(cors());
 
 /* ===============================
-   LIMITADOR (ANTI-DDOS)
+   RATE LIMIT (ANTI-DDOS)
 =============================== */
 const limiter = rateLimit({
-  windowMs: 5 * 30 * 1000,
+  windowMs: 5 * 60 * 1000, // 5 min
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
@@ -19,14 +19,76 @@ const limiter = rateLimit({
   }
 });
 
-// Aplicar a TODAS las rutas de este router
 router.use(limiter);
 
 /* ===============================
-   OBTENER TODOS LOS USUARIOS
+   DELAY ANTI-SPAM
+=============================== */
+const ultimasPeticiones = new Map();
+const DELAY_MS = 2500;
+
+function verificarDelay(req) {
+
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket.remoteAddress;
+
+  const ahora = Date.now();
+
+  const ultima = ultimasPeticiones.get(ip) || 0;
+
+  if (ahora - ultima < DELAY_MS) return false;
+
+  ultimasPeticiones.set(ip, ahora);
+
+  setTimeout(() => {
+    ultimasPeticiones.delete(ip);
+  }, DELAY_MS * 2);
+
+  return true;
+}
+
+/* ===============================
+   VALIDAR NOMBRE
+=============================== */
+function validarNombre(nombre) {
+
+  if (!nombre) return false;
+
+  nombre = nombre.trim();
+
+  if (nombre.length < 3) return false;
+  if (nombre.length > 25) return false;
+
+  // Eliminar HTML
+  nombre = nombre.replace(/<[^>]*>?/gm, "");
+
+  // Bloqueo palabras peligrosas
+  const bloqueadas = [
+    "script", "select", "insert", "delete", "drop",
+    "update", "union", "javascript:", "--", "/*", "*/"
+  ];
+
+  const lower = nombre.toLowerCase();
+
+  for (const palabra of bloqueadas) {
+    if (lower.includes(palabra)) return false;
+  }
+
+  // Solo letras/números/espacio
+  const regex = /^[A-Za-z0-9áéíóúÁÉÍÓÚñÑ ]+$/;
+
+  if (!regex.test(nombre)) return false;
+
+  return nombre;
+}
+
+/* ===============================
+   OBTENER USUARIOS
 =============================== */
 router.get("/usuarios", async (req, res) => {
   try {
+
     const [rows] = await conexion.query(
       "SELECT pk_idusuario, nombre FROM usuarios"
     );
@@ -34,8 +96,12 @@ router.get("/usuarios", async (req, res) => {
     res.json(rows);
 
   } catch (err) {
-    console.error("Error al obtener usuarios:", err);
-    res.status(500).json({ error: "Error al obtener usuarios" });
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al obtener usuarios"
+    });
   }
 });
 
@@ -44,20 +110,51 @@ router.get("/usuarios", async (req, res) => {
 =============================== */
 router.post("/usuarios", async (req, res) => {
   try {
-    const { nombre } = req.body;
+
+    if (!verificarDelay(req)) {
+      return res.status(429).json({
+        error: "Espera unos segundos"
+      });
+    }
+
+    let { nombre } = req.body;
+
+    nombre = validarNombre(nombre);
+
+    if (!nombre) {
+      return res.status(400).json({
+        error: "Nombre inválido (3-25 caracteres, sin scripts)"
+      });
+    }
+
+    // Bloquear duplicados
+    const [existe] = await conexion.query(
+      "SELECT pk_idusuario FROM usuarios WHERE nombre = ?",
+      [nombre]
+    );
+
+    if (existe.length > 0) {
+      return res.status(400).json({
+        error: "Ese nombre ya existe"
+      });
+    }
 
     await conexion.query(
       "INSERT INTO usuarios (nombre) VALUES (?)",
       [nombre]
     );
 
-    res.json({ ok: true, msg: "Usuario creado" });
+    res.json({
+      ok: true,
+      msg: "Usuario creado"
+    });
 
   } catch (err) {
-    console.error("Error al crear usuario:", err);
+
+    console.error(err);
 
     res.status(400).json({
-      error: err.sqlMessage || "Datos inválidos",
+      error: "Error al crear usuario"
     });
   }
 });
@@ -67,21 +164,52 @@ router.post("/usuarios", async (req, res) => {
 =============================== */
 router.put("/usuarios/:id", async (req, res) => {
   try {
+
+    if (!verificarDelay(req)) {
+      return res.status(429).json({
+        error: "Espera unos segundos"
+      });
+    }
+
     const { id } = req.params;
-    const { nombre } = req.body;
+    let { nombre } = req.body;
+
+    nombre = validarNombre(nombre);
+
+    if (!nombre) {
+      return res.status(400).json({
+        error: "Nombre inválido"
+      });
+    }
+
+    // Anti-duplicados
+    const [existe] = await conexion.query(
+      "SELECT pk_idusuario FROM usuarios WHERE nombre = ? AND pk_idusuario != ?",
+      [nombre, id]
+    );
+
+    if (existe.length > 0) {
+      return res.status(400).json({
+        error: "Ese nombre ya existe"
+      });
+    }
 
     await conexion.query(
       "UPDATE usuarios SET nombre = ? WHERE pk_idusuario = ?",
       [nombre, id]
     );
 
-    res.json({ ok: true, msg: "Usuario actualizado" });
+    res.json({
+      ok: true,
+      msg: "Usuario actualizado"
+    });
 
   } catch (err) {
-    console.error("Error al actualizar usuario:", err);
+
+    console.error(err);
 
     res.status(400).json({
-      error: err.sqlMessage || "Datos inválidos",
+      error: "Error al actualizar"
     });
   }
 });
@@ -91,6 +219,13 @@ router.put("/usuarios/:id", async (req, res) => {
 =============================== */
 router.delete("/usuarios/:id", async (req, res) => {
   try {
+
+    if (!verificarDelay(req)) {
+      return res.status(429).json({
+        error: "Espera unos segundos"
+      });
+    }
+
     const { id } = req.params;
 
     await conexion.query(
@@ -98,17 +233,23 @@ router.delete("/usuarios/:id", async (req, res) => {
       [id]
     );
 
-    res.json({ ok: true, msg: "Usuario eliminado" });
+    res.json({
+      ok: true,
+      msg: "Usuario eliminado"
+    });
 
   } catch (err) {
-    console.error("Error al eliminar usuario:", err);
 
-    res.status(500).json({ error: "Error al eliminar usuario" });
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al eliminar usuario"
+    });
   }
 });
 
 /* ===============================
-   PERMISOS (SOLO LECTURA)
+   PERMISOS
 =============================== */
 router.get("/permisos", async (req, res) => {
   try {
@@ -117,16 +258,21 @@ router.get("/permisos", async (req, res) => {
       "SELECT rol FROM permisos LIMIT 1"
     );
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Permisos no configurados" });
+    if (!rows.length) {
+      return res.status(404).json({
+        error: "Permisos no configurados"
+      });
     }
 
     res.json(rows[0]);
 
   } catch (err) {
-    console.error("Error al obtener permisos:", err);
 
-    res.status(500).json({ error: "Error al obtener permisos" });
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al obtener permisos"
+    });
   }
 });
 
