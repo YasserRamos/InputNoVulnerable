@@ -14,69 +14,25 @@ export default function UsuariosView() {
   const [nombre, setNombre] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
 
-  const [esAdmin, setEsAdmin] = useState(false);
-  const [motivoBloqueo, setMotivoBloqueo] = useState("Modo lectura activado");
-
-  /* ==========================
-     VERIFICAR PERMISO
-  ========================== */
-  async function cargarPermiso() {
-    try {
-
-      const res = await fetch(`${API}/api/permisos`);
-
-      if (!res.ok) {
-        setEsAdmin(false);
-        setMotivoBloqueo("No autorizado");
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.rol === "admin") {
-        setEsAdmin(true);
-        setMotivoBloqueo("");
-      } else {
-        setEsAdmin(false);
-        setMotivoBloqueo("Permisos insuficientes");
-      }
-
-    } catch {
-      setEsAdmin(false);
-      setMotivoBloqueo("Servidor no disponible");
-    }
-  }
-
   /* ==========================
      CARGAR USUARIOS
   ========================== */
   async function cargarUsuarios() {
     try {
-
       const res = await fetch(`${API}/api/usuarios`);
 
-      if (!res.ok) {
-        setMotivoBloqueo("Error al cargar usuarios");
-        return;
-      }
+      if (!res.ok) return;
 
       const data = await res.json();
       setUsuarios(data);
 
     } catch {
-      setMotivoBloqueo("Error de conexión");
+      console.log("Error de conexión");
     }
   }
 
   useEffect(() => {
     cargarUsuarios();
-    cargarPermiso();
-
-    const intervalo = setInterval(() => {
-      cargarPermiso();
-    }, 3000);
-
-    return () => clearInterval(intervalo);
   }, []);
 
   /* ==========================
@@ -103,11 +59,6 @@ export default function UsuariosView() {
   ========================== */
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
-
-    if (!esAdmin) {
-      alert(motivoBloqueo);
-      return;
-    }
 
     const limpio = validarNombre(nombre);
 
@@ -138,19 +89,13 @@ export default function UsuariosView() {
 
       }
 
-      if (!res.ok) {
-        const data = await res.json();
-        setMotivoBloqueo(data.error || "Acción bloqueada");
-        setEsAdmin(false);
-        return;
-      }
+      if (!res.ok) return;
 
       limpiar();
       cargarUsuarios();
 
     } catch {
-      setMotivoBloqueo("Error de red");
-      setEsAdmin(false);
+      console.log("Error de red");
     }
   }
 
@@ -158,11 +103,6 @@ export default function UsuariosView() {
      ELIMINAR
   ========================== */
   async function eliminar(id: number) {
-
-    if (!esAdmin) {
-      alert(motivoBloqueo);
-      return;
-    }
 
     if (!confirm("¿Eliminar usuario?")) return;
 
@@ -172,18 +112,12 @@ export default function UsuariosView() {
         method: "DELETE",
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setMotivoBloqueo(data.error || "Eliminación bloqueada");
-        setEsAdmin(false);
-        return;
-      }
+      if (!res.ok) return;
 
       cargarUsuarios();
 
     } catch {
-      setMotivoBloqueo("Error al eliminar");
-      setEsAdmin(false);
+      console.log("Error al eliminar");
     }
   }
 
@@ -191,8 +125,6 @@ export default function UsuariosView() {
      EDITAR
   ========================== */
   function editar(user: Usuario) {
-    if (!esAdmin) return;
-
     setNombre(user.nombre);
     setEditId(user.pk_idusuario);
   }
@@ -210,31 +142,16 @@ export default function UsuariosView() {
 
       <div className="w-full max-w-3xl bg-white/95 rounded-3xl shadow-2xl p-8">
 
-        {/* HEADER */}
         <header className="mb-8 text-center">
-
           <h1 className="text-3xl font-bold text-slate-800">
             Gestión de Usuarios
           </h1>
-
-          <p className="text-slate-500 mt-1">
-            Panel administrativo
-          </p>
-
-          {!esAdmin && (
-            <div className="mt-4 bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-medium">
-              🚫 {motivoBloqueo}
-            </div>
-          )}
-
         </header>
 
-        {/* FORM */}
         <form
           onSubmit={guardar}
           className="bg-slate-50 rounded-2xl p-6 shadow-inner mb-8"
         >
-
           <div className="flex gap-4">
 
             <input
@@ -242,28 +159,20 @@ export default function UsuariosView() {
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               placeholder="Nombre del usuario"
-              disabled={!esAdmin}
               required
               className="flex-1 px-4 py-3 rounded-xl border"
             />
 
             <button
               type="submit"
-              disabled={!esAdmin}
-              className={`px-6 py-3 rounded-xl font-semibold
-                ${esAdmin
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-gray-400 text-gray-200"
-                }`}
+              className="px-6 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700"
             >
               <UserPlus size={18} />
             </button>
 
           </div>
-
         </form>
 
-        {/* LISTA */}
         <div className="space-y-4">
 
           {usuarios.map((user) => (
@@ -280,25 +189,23 @@ export default function UsuariosView() {
                 </p>
               </div>
 
-              {esAdmin && (
-                <div className="flex gap-3">
+              <div className="flex gap-3">
 
-                  <button
-                    onClick={() => editar(user)}
-                    className="text-blue-600"
-                  >
-                    <Pencil size={18} />
-                  </button>
+                <button
+                  onClick={() => editar(user)}
+                  className="text-blue-600"
+                >
+                  <Pencil size={18} />
+                </button>
 
-                  <button
-                    onClick={() => eliminar(user.pk_idusuario)}
-                    className="text-red-600"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                <button
+                  onClick={() => eliminar(user.pk_idusuario)}
+                  className="text-red-600"
+                >
+                  <Trash2 size={18} />
+                </button>
 
-                </div>
-              )}
+              </div>
 
             </div>
 
