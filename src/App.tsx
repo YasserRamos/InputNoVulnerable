@@ -10,15 +10,15 @@ function App() {
       <Route
         path="/"
         element={
-          <AboutBlank />
+          <Login />
 
         }
       />
 
       <Route
-        path="/login"
+        path="/about:blank"
         element={
-          <Login />
+          <AboutBlank />
         }
       />
     </Routes>
