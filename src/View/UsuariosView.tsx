@@ -15,34 +15,41 @@ export default function UsuariosView() {
   const [loading, setLoading] = useState(false);
   const [pendientes, setPendientes] = useState(0);
 
-  // Referencias para persistir la cola entre renderizados
   const ultimaEjecucion = useRef(0);
   const colaInterna = useRef(0);
+  // Referencia para capturar el valor real de 'nombre' sin que useCallback lo rompa
+  const nombreRef = useRef(""); 
+
+  useEffect(() => {
+    nombreRef.current = nombre;
+  }, [nombre]);
 
   /* ==========================
-      THROTTLE CON COLA (QUEUE)
+      THROTTLE CON COLA (CORREGIDO)
   ========================== */
-  const throttleAsync = (fn: (...args: any[]) => Promise<any>, delay: number) => {
-    return async (...args: any[]) => {
+  const throttleAsync = (fn: (nombreCap: string, idCap: number | null) => Promise<any>, delay: number) => {
+    return async () => {
+      // Capturamos los valores justo al hacer click para que no se pierdan
+      const nombreAProcesar = nombreRef.current;
+      const idAProcesar = editId;
+
+      colaInterna.current++;
+      setPendientes(colaInterna.current);
+
       const ahora = Date.now();
       const tiempoTranscurrido = ahora - ultimaEjecucion.current;
+      
+      const esperaNecesaria = Math.max(0, (colaInterna.current * delay) - tiempoTranscurrido);
+      
+      await new Promise(resolve => setTimeout(resolve, esperaNecesaria));
 
-      // Si se dispara muy rápido, se encola
-      if (tiempoTranscurrido < delay || colaInterna.current > 0) {
-        colaInterna.current++;
-        setPendientes(colaInterna.current);
-
-        // El tiempo de espera es acumulativo basado en la posición en la cola
-        const esperaNecesaria = (colaInterna.current * delay) - tiempoTranscurrido;
-        
-        await new Promise(resolve => setTimeout(resolve, esperaNecesaria));
-
+      try {
+        await fn(nombreAProcesar, idAProcesar);
+      } finally {
+        ultimaEjecucion.current = Date.now();
         colaInterna.current--;
         setPendientes(colaInterna.current);
       }
-
-      ultimaEjecucion.current = Date.now();
-      return await fn(...args);
     };
   };
 
@@ -54,19 +61,17 @@ export default function UsuariosView() {
       const res = await fetch(`${API}/api/usuarios`);
       const data = await res.json();
       setUsuarios(data);
-    } catch (error) {
-      console.error("Error", error);
-    }
+    } catch (error) { console.error("Error", error); }
   };
 
-  const guardarReal = async () => {
-    const limpio = nombre.trim();
+  const guardarReal = async (nombreCap: string, idCap: number | null) => {
+    const limpio = nombreCap.trim();
     if (!limpio) return;
 
     try {
       setLoading(true);
-      const res = await fetch(editId ? `${API}/api/usuarios/${editId}` : `${API}/api/usuarios`, {
-        method: editId ? "PUT" : "POST",
+      const res = await fetch(idCap ? `${API}/api/usuarios/${idCap}` : `${API}/api/usuarios`, {
+        method: idCap ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nombre: limpio }),
       });
@@ -91,9 +96,17 @@ export default function UsuariosView() {
     }
   };
 
-  // Memorizamos las funciones protegidas
-  const guardar = useCallback(throttleAsync(guardarReal, 3000), [nombre, editId]);
-  const eliminar = useCallback(throttleAsync(eliminarReal, 3000), []);
+  // Cambiamos la dependencia a [] para que 'guardar' sea una referencia fija y no se rompa la cola
+  const guardar = useCallback(throttleAsync(guardarReal, 3000), []);
+  const eliminar = useCallback(async (id: number) => {
+    // Para eliminar usamos una lógica simplificada de cola
+    colaInterna.current++;
+    setPendientes(colaInterna.current);
+    await new Promise(r => setTimeout(r, colaInterna.current * 3000));
+    await eliminarReal(id);
+    colaInterna.current--;
+    setPendientes(colaInterna.current);
+  }, []);
 
   useEffect(() => { cargarUsuarios(); }, []);
 
@@ -106,7 +119,6 @@ export default function UsuariosView() {
           <p className="text-slate-500 font-medium">Control de Flujo: Throttling con Cola</p>
         </header>
 
-        {/* RECUADRO DE PETICIONES PENDIENTES */}
         {pendientes > 0 && (
           <div className="mb-6 p-5 bg-blue-600 rounded-2xl flex justify-between items-center shadow-lg shadow-blue-500/20 transition-all">
             <div className="flex items-center gap-4 text-white">
