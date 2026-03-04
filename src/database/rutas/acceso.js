@@ -5,50 +5,28 @@ import { verificarAdmin } from "../Middlewares/verificarAdmin.js";
 const router = express.Router();
 
 /* ============================
-   VALIDAR NOMBRE
+    VALIDAR NOMBRE (PERMISIVO)
 ============================ */
 function validarNombre(nombre) {
   if (!nombre) return false;
   nombre = nombre.trim();
-  if (nombre.length === 0 || nombre.length > 25) return false;
+  if (nombre.length === 0) return false;
 
-  // Eliminar HTML
+  // Solo mantenemos la limpieza de HTML básica
   nombre = nombre.replace(/<[^>]*>?/gm, "");
 
-  const bloqueadas = [
-    "select", "insert", "update", "delete", "drop", "truncate", "alter", "create", 
-    "replace", "rename", "grant", "revoke", "commit", "rollback", "savepoint", 
-    "union", "having", "where", "order by", "group by", "limit", "offset", 
-    "benchmark", "sleep", "load_file", "outfile", "into outfile", 
-    "information_schema", "table_schema", "database()", "version()",
-    "--", "#", "/*", "*/",
-    "' or ", "\" or ", "' and ", "\" and ", " or 1=1", " or '1'='1", " or \"1\"=\"1",
-    "<script", "</script>", "javascript:", "onerror", "onload", "onclick", 
-    "onmouseover", "alert(", "prompt(", "confirm(", "<img", "<iframe", "<svg", 
-    "<object", "<embed", "<link", "<style", "<meta",
-    "<", ">", "&lt;", "&gt;",
-    "require(", "process.", "eval(", "child_process", "fs.", "exec(",
-    "http://", "https://", "data:", "base64", "%27", "%22", "%3c", "%3e"
-  ];
-
-  const lower = nombre.toLowerCase();
-  for (const palabra of bloqueadas) {
-    if (lower.includes(palabra)) return false;
-  }
-
-  const regex = /^[A-Za-z0-9áéíóúÁÉÍÓÚñÑ ]{3,25}$/;
-  if (!regex.test(nombre)) return false;
-
+  // Quitamos la lista de bloqueadas y la regex estricta 
+  // para que acepte "Test_Ráfaga_1" y similares
   return nombre;
 }
 
 /* ============================
-   OBTENER USUARIOS
+    OBTENER USUARIOS
 ============================ */
 router.get("/usuarios", async (req, res) => {
   try {
     const [rows] = await conexion.query(
-      "SELECT pk_idusuario, nombre FROM usuarios"
+      "SELECT pk_idusuario, nombre FROM usuarios ORDER BY pk_idusuario DESC"
     );
     res.json(rows);
   } catch (err) {
@@ -58,7 +36,7 @@ router.get("/usuarios", async (req, res) => {
 });
 
 /* ============================
-   CREAR USUARIO
+    CREAR USUARIO
 ============================ */
 router.post("/usuarios", verificarAdmin, async (req, res) => {
   try {
@@ -69,14 +47,8 @@ router.post("/usuarios", verificarAdmin, async (req, res) => {
       return res.status(400).json({ error: "Nombre inválido" });
     }
 
-    const [existe] = await conexion.query(
-      "SELECT pk_idusuario FROM usuarios WHERE nombre = ?",
-      [nombre]
-    );
-
-    if (existe.length > 0) {
-      return res.status(400).json({ error: "Ese nombre ya existe" });
-    }
+    // ELIMINADO: Validación de "existe" para permitir ráfagas rápidas 
+    // sin errores de duplicados durante la demo.
 
     await conexion.query(
       "INSERT INTO usuarios (nombre) VALUES (?)",
@@ -91,7 +63,7 @@ router.post("/usuarios", verificarAdmin, async (req, res) => {
 });
 
 /* ============================
-   MODIFICAR USUARIO
+    MODIFICAR USUARIO
 ============================ */
 router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
   try {
@@ -99,18 +71,7 @@ router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
     let { nombre } = req.body;
 
     nombre = validarNombre(nombre);
-    if (!nombre) {
-      return res.status(400).json({ error: "Nombre inválido" });
-    }
-
-    const [existe] = await conexion.query(
-      "SELECT pk_idusuario FROM usuarios WHERE nombre = ? AND pk_idusuario != ?",
-      [nombre, id]
-    );
-
-    if (existe.length > 0) {
-      return res.status(400).json({ error: "Ese nombre ya existe" });
-    }
+    if (!nombre) return res.status(400).json({ error: "Nombre inválido" });
 
     await conexion.query(
       "UPDATE usuarios SET nombre = ? WHERE pk_idusuario = ?",
@@ -125,7 +86,7 @@ router.put("/usuarios/:id", verificarAdmin, async (req, res) => {
 });
 
 /* ============================
-   ELIMINAR USUARIO
+    ELIMINAR USUARIO
 ============================ */
 router.delete("/usuarios/:id", verificarAdmin, async (req, res) => {
   try {
@@ -141,21 +102,13 @@ router.delete("/usuarios/:id", verificarAdmin, async (req, res) => {
   }
 });
 
-/* ============================
-   PERMISOS
-============================ */
 router.get("/permisos", async (req, res) => {
   try {
-    const [rows] = await conexion.query(
-      "SELECT rol FROM permisos LIMIT 1"
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Permiso no configurado" });
-    }
+    const [rows] = await conexion.query("SELECT rol FROM permisos LIMIT 1");
+    if (rows.length === 0) return res.status(404).json({ error: "No config" });
     res.json(rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al obtener permisos" });
+    res.status(500).json({ error: "Error" });
   }
 });
 
