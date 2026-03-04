@@ -3,26 +3,12 @@ import acceso from "./rutas/acceso.js";
 import rutaSync from "./rutas/sincronizar.js";
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
 
 const PORT = process.env.PORT || 3002;
-
 const app = express();
 
 // Proxy para Render/Railway
 app.set("trust proxy", 1);
-
-/* ============================
-   RATE LIMIT GLOBAL
-============================ */
-const globalLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 min
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-app.use(globalLimiter);
 
 /* ============================
    CORS SEGURO
@@ -46,12 +32,10 @@ app.use(express.json());
 ============================ */
 app.use(helmet());
 
-// Evita iframes
 app.use(helmet.frameguard({
   action: "deny"
 }));
 
-// CSP compatible con React
 app.use(
   helmet.contentSecurityPolicy({
     directives: {
@@ -80,6 +64,15 @@ app.use(
 );
 
 /* ============================
+   MIDDLEWARE LOG IP
+============================ */
+app.use((req, res, next) => {
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+  console.log("Solicitud desde IP:", ip, "Ruta:", req.originalUrl);
+  next();
+});
+
+/* ============================
    RUTAS
 ============================ */
 app.use("/api", acceso);
@@ -89,7 +82,20 @@ app.use("/api/sync", rutaSync);
    TEST
 ============================ */
 app.get("/api/prueba", (req, res) => {
-  res.send("🚀 Servidor funcionando correctamente");
+  res.json({
+    mensaje: "Servidor funcionando correctamente",
+    ip: req.ip
+  });
+});
+
+/* ============================
+   MANEJO GLOBAL DE ERRORES
+============================ */
+app.use((err, req, res, next) => {
+  console.log("ERROR GLOBAL:", err);
+  res.status(500).json({
+    error: "Error interno del servidor"
+  });
 });
 
 /* ============================

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, UserPlus } from "lucide-react";
+import { Pencil, Trash2, UserPlus, Loader2, Clock } from "lucide-react";
 
 interface Usuario {
   pk_idusuario: number;
@@ -9,210 +9,171 @@ interface Usuario {
 const API = import.meta.env.VITE_API_URL;
 
 export default function UsuariosView() {
-
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [nombre, setNombre] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  
+  // Estado para gestionar la cola de peticiones (Throttling Buffer)
+  const [pendientes, setPendientes] = useState(0);
 
   /* ==========================
-     CARGAR USUARIOS
+      THROTTLE CON COLA (QUEUE)
+  ========================== */
+  function throttleAsync(fn: (...args: any[]) => Promise<any>, delay: number) {
+    let ultimaEjecucion = 0;
+    let colaInterna = 0;
+
+    return async (...args: any[]) => {
+      const ahora = Date.now();
+      const tiempoTranscurrido = ahora - ultimaEjecucion;
+
+      if (tiempoTranscurrido < delay) {
+        colaInterna++;
+        setPendientes(colaInterna);
+
+        const esperaNecesaria = (colaInterna * delay) - tiempoTranscurrido;
+        await new Promise(resolve => setTimeout(resolve, esperaNecesaria));
+
+        colaInterna--;
+        setPendientes(colaInterna);
+      }
+
+      ultimaEjecucion = Date.now();
+      return await fn(...args);
+    };
+  }
+
+  /* ==========================
+      ACCIONES DEL CRUD
   ========================== */
   async function cargarUsuarios() {
     try {
+      setLoading(true);
       const res = await fetch(`${API}/api/usuarios`);
-
-      if (!res.ok) return;
-
+      if (!res.ok) throw new Error("Error en la carga");
       const data = await res.json();
       setUsuarios(data);
-
-    } catch {
-      console.log("Error de conexión");
+    } catch (error) {
+      console.error("Error de conexión", error);
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => {
-    cargarUsuarios();
-  }, []);
-
-  /* ==========================
-     VALIDAR NOMBRE
-  ========================== */
-  function validarNombre(valor: string): string | null {
-
-    let limpio = valor.trim();
-
-    if (limpio.length === 0) return null;
-    if (limpio.length > 25) return null;
-
-    limpio = limpio.replace(/<[^>]*>?/gm, "");
-
-    const regex = /^[A-Za-z0-9áéíóúÁÉÍÓÚñÑ ]{3,25}$/;
-
-    if (!regex.test(limpio)) return null;
-
-    return limpio;
-  }
-
-  /* ==========================
-     CREAR / MODIFICAR
-  ========================== */
-  async function guardar(e: React.FormEvent) {
-    e.preventDefault();
-
-    const limpio = validarNombre(nombre);
-
-    if (!limpio) {
-      alert("Nombre inválido");
-      return;
-    }
+  async function guardarReal(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const limpio = nombre.trim();
+    if (!limpio) return;
 
     try {
-
-      let res;
-
-      if (!editId) {
-
-        res = await fetch(`${API}/api/usuarios`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre: limpio }),
-        });
-
-      } else {
-
-        res = await fetch(`${API}/api/usuarios/${editId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre: limpio }),
-        });
-
+      setLoading(true);
+      const config = {
+        method: editId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: limpio }),
+      };
+      
+      const url = editId ? `${API}/api/usuarios/${editId}` : `${API}/api/usuarios`;
+      const res = await fetch(url, config);
+      
+      if (res.ok) {
+        setNombre("");
+        setEditId(null);
+        await cargarUsuarios();
       }
-
-      if (!res.ok) return;
-
-      limpiar();
-      cargarUsuarios();
-
-    } catch {
-      console.log("Error de red");
+    } catch (error) {
+      console.error("Error al guardar", error);
+    } finally {
+      setLoading(false);
     }
   }
 
-  /* ==========================
-     ELIMINAR
-  ========================== */
-  async function eliminar(id: number) {
-
+  async function eliminarReal(id: number) {
     if (!confirm("¿Eliminar usuario?")) return;
-
     try {
-
-      const res = await fetch(`${API}/api/usuarios/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) return;
-
-      cargarUsuarios();
-
-    } catch {
-      console.log("Error al eliminar");
+      setLoading(true);
+      await fetch(`${API}/api/usuarios/${id}`, { method: "DELETE" });
+      await cargarUsuarios();
+    } catch (error) {
+      console.error("Error al eliminar", error);
+    } finally {
+      setLoading(false);
     }
   }
 
-  /* ==========================
-     EDITAR
-  ========================== */
-  function editar(user: Usuario) {
-    setNombre(user.nombre);
-    setEditId(user.pk_idusuario);
-  }
+  // Versiones protegidas con Delay de 3 segundos
+  const guardar = throttleAsync(guardarReal, 3000);
+  const eliminar = throttleAsync(eliminarReal, 3000);
 
-  function limpiar() {
-    setNombre("");
-    setEditId(null);
-  }
+  useEffect(() => { cargarUsuarios(); }, []);
 
-  /* ==========================
-     UI
-  ========================== */
   return (
-    <section className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
-
-      <div className="w-full max-w-3xl bg-white/95 rounded-3xl shadow-2xl p-8">
-
+    <section className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl bg-white rounded-3xl shadow-xl p-8">
+        
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-slate-800">
-            Gestión de Usuarios
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
+          <p className="text-slate-500">Auditoría de Control de Flujo (Rate Limiting)</p>
         </header>
 
+        {/* RECUADRO DE PETICIONES PENDIENTES */}
+        {pendientes > 0 && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex justify-between items-center animate-pulse">
+            <div className="flex items-center gap-3 text-blue-700">
+              <Clock className="animate-spin-slow" size={24} />
+              <div>
+                <p className="font-bold">Cola de Procesamiento Activa</p>
+                <p className="text-sm">Ejecutando ráfaga de peticiones serializadas</p>
+              </div>
+            </div>
+            <div className="text-2xl font-mono font-black bg-blue-600 text-white px-4 py-1 rounded-lg">
+              {pendientes}
+            </div>
+          </div>
+        )}
+
         <form
-          onSubmit={guardar}
-          className="bg-slate-50 rounded-2xl p-6 shadow-inner mb-8"
+          onSubmit={(e) => { e.preventDefault(); guardar(); }}
+          className="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100"
         >
           <div className="flex gap-4">
-
             <input
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               placeholder="Nombre del usuario"
-              required
-              className="flex-1 px-4 py-3 rounded-xl border"
+              className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading && pendientes === 0}
             />
-
             <button
               type="submit"
-              className="px-6 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700"
+              className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 transition-all"
             >
-              <UserPlus size={18} />
+              {loading && pendientes === 0 ? <Loader2 className="animate-spin" /> : <UserPlus size={18} />}
+              <span>{editId ? "Actualizar" : "Guardar"}</span>
             </button>
-
           </div>
         </form>
 
-        <div className="space-y-4">
-
+        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
           {usuarios.map((user) => (
-
-            <div
-              key={user.pk_idusuario}
-              className="bg-white border rounded-xl p-4 flex justify-between"
-            >
-
+            <div key={user.pk_idusuario} className="bg-white border border-slate-100 rounded-xl p-4 flex justify-between items-center shadow-sm">
               <div>
-                <p className="font-semibold">{user.nombre}</p>
-                <p className="text-sm text-gray-500">
-                  ID: #{user.pk_idusuario}
-                </p>
+                <p className="font-bold text-slate-700">{user.nombre}</p>
+                <p className="text-xs text-slate-400 font-mono">ID: {user.pk_idusuario}</p>
               </div>
-
-              <div className="flex gap-3">
-
-                <button
-                  onClick={() => editar(user)}
-                  className="text-blue-600"
-                >
+              <div className="flex gap-2">
+                <button onClick={() => { setNombre(user.nombre); setEditId(user.pk_idusuario); }} className="p-2 text-slate-400 hover:text-blue-600">
                   <Pencil size={18} />
                 </button>
-
-                <button
-                  onClick={() => eliminar(user.pk_idusuario)}
-                  className="text-red-600"
-                >
+                <button onClick={() => eliminar(user.pk_idusuario)} className="p-2 text-slate-400 hover:text-red-600">
                   <Trash2 size={18} />
                 </button>
-
               </div>
-
             </div>
-
           ))}
-
         </div>
-
       </div>
     </section>
   );
